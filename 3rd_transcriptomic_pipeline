@@ -1,0 +1,141 @@
+##################################################################
+## This pipeline is the second step of transcriptomics pipeline ##
+##################################################################
+#############################################
+## Aim: Persistence of plasmids by RNA-Seq ##
+#############################################
+'''
+Assumptions:
+Before starting: Adapt your configfile
+
+Your files are already quality trimmed
+'''
+##################################
+## Steps in this script:        ##
+## Indexing of ref_genome       ##
+## Bowtie2: Align to ref_genome ##
+## Convert2bam + index          ##
+## an example of feature Counts ##
+##################################
+
+## -> in the end it's better to execute featureCounts separately, because it's only one command for all samples
+## -> look up the command at the end of the script and adapt to your needs
+
+'''
+Afterwards it's recommended to do:
+DeSeq2 for differential expression or
+TPM calculation for within gene comparisons.
+This depends on your experimental design.
+
+samtools: coverage calculation for frequencies
+'''
+
+###############################################
+## Input: Quality checked paired Fastq-Files ##
+###############################################
+
+configfile: 'configs/cyanos.json'
+reference_genome = config["reference_genome"]
+wd_dir = config["working_dir"]
+indx_name = config["index_name"]
+project_name = 'synechocystis'
+annotation = config["annotation"]
+ref_path = config["reference_genome_path"]
+
+
+###################################
+## Define your samples in a list ##
+###################################
+# -> assuming that all of your samples are in one directory
+# -> these lines need to be adapted 
+
+import os
+sample_path = '/home/sunam188/MA_thesis/synechocystis/main_data/fastq'
+samples = [x.split('_')[0] for x in os.listdir(sample_path) if not x.startswith('.')]
+samples = list(set(samples))
+
+rule all:
+    input:
+        expand('main_data/alignments/sorted_corr/{sample}.sorted_corr.bam.bai', sample=samples)
+
+rule index_ref_genome:
+    input:
+        ref_genome = reference_genome,
+        ref_path = ref_path
+    output:
+        tmp_dir = directory(expand('{path}tmp/', path=wd_dir)),
+    shell:
+        'mkdir -p {output.tmp_dir}; bowtie2-build {input.ref_genome} index; mv index* {input.ref_path}'
+
+
+rule align_bowtie2:
+    input:
+        tmp_dir = expand('{path}tmp/', path=wd_dir),
+        paired1 = 'main_data/trimmed_fastq/paired_fastq/{sample}_1.trim.fastq',
+        paired2 = 'main_data/trimmed_fastq/paired_fastq/{sample}_2.trim.fastq',
+        ref_path = ref_path,
+    output:
+        sam = 'main_data/alignments/sams/{sample}.sam',
+    threads: 1
+    shell:
+        'bowtie2 -p 20 -x {input.ref_path}/index -1 {input.paired1} -2 {input.paired2} -S {output.sam}'     
+        
+        
+rule sam2bam:
+    input:
+        sam = 'main_data/alignments/sams/{sample}.sam'
+    output:
+        bam = 'main_data/alignments/bams/{sample}.bam'
+    threads: 1
+    shell:
+        'samtools view -bS {input.sam} > {output.bam}'
+
+rule sort_coordinates:
+    input:
+        bam = 'main_data/alignments/bams/{sample}.bam'
+    output:
+        sorted = 'main_data/alignments/sorted_corr/{sample}.sorted_corr.bam'
+    threads: 1
+    shell:
+        'samtools sort -@ 1 {input.bam} -o {output.sorted}'
+        
+rule calc_coverage:
+    input:
+        sorted = 'main_data/alignments/sorted_corr/{sample}.sorted_corr.bam'
+    output:
+        depth = 'main_data/alignments/coverage/{sample}.coverage.depth'
+    threads: 1
+    shell:
+        'samtools depth -a {input.sorted} -o {output.depth}'
+        
+rule index_sorted:
+    input:
+        sorted = 'main_data/alignments/sorted_corr/{sample}.sorted_corr.bam',
+        depth = 'main_data/alignments/coverage/{sample}.coverage.depth'
+    output:
+        indexed = 'main_data/alignments/sorted_corr/{sample}.sorted_corr.bam.bai'
+    threads: 1
+    shell:
+        'samtools index -@ 1 -b {input.sorted}'
+        
+
+
+        
+
+
+#############################################
+## Execute featureCounts from command line ##
+#############################################
+'''
+An example is given below:
+'''
+#rule featureCounts:
+#    input:
+#        anno = annotation,
+#        sorted_out = expand('{path}main_data/alignments/sorted_corr/', path=wd_dir),
+#        bam_out = expand('{path}main_data/alignments/bams/', path=wd_dir),
+#    output:
+#        featC = directory(expand('{path}main_data/featureCounts/', path=wd_dir))
+#    threads: 1
+#    shell:
+#        'mkdir -p {output.featC}; featureCounts -F GTF -T 30 -p -a {input.anno} -t CDS -g ID -o {output.featC}/countMatrix_ID.txt {input.sorted_out}/*.bam'

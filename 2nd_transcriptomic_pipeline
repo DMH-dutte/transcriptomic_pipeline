@@ -1,0 +1,92 @@
+##################################################################
+## This pipeline is the second step of transcriptomics pipeline ##
+##################################################################
+#############################################
+## Aim: Persistence of plasmids by RNA-Seq ##
+#############################################
+'''
+Assumptions:
+Before starting: Adapt your configfile
+
+FastQC/MultiQC has already been exectued once and
+the files need a quality trimming (then: adapt the rule "exec_trimmomatic")
+'''
+##################################
+## Steps in this script:        ##
+## trimmomatic: quality trim    ##
+## Indexing of ref_genome       ##
+## Bowtie2: Align to ref_genome ##
+## Convert2bam + index          ##
+## an example of feature Counts ##
+##################################
+
+## -> in the end it's better to execute featureCounts separately, because it's only one command for all samples
+## -> look up the command at the end of the script and adapt to your needs
+
+'''
+Afterwards it's recommended to do:
+DeSeq2 for differential expression or
+TPM calculation for within gene comparisons
+
+samtools: coverage calculation for frequencies
+'''
+
+###############################################
+## Input: Quality checked paired Fastq-Files ##
+###############################################
+
+configfile: 'configs/cyanos.json'
+wd_dir = config["working_dir"]
+
+
+
+###################################
+## Define your samples in a list ##
+###################################
+# -> assuming that all of your samples are in one directory
+# -> these lines need to be adapted 
+
+import os
+sample_path = '/home/sunam188/MA_thesis/synechocystis/main_data/fastq'
+samples = [x.split('_')[0] for x in os.listdir(sample_path) if not x.startswith('.')]
+samples = list(set(samples))
+
+#####################################
+## RULE ALL: Definition of the End ##
+#####################################
+
+rule all:
+    input:
+        expand('main_data/FastQC2/{sample}_1.trim_fastqc.html', sample=samples),
+        expand('main_data/FastQC2/{sample}_2.trim_fastqc.html', sample=samples)
+        
+rule exec_trimmomatic:
+    input:
+        fastqs1 = 'main_data/fastq/{sample}_1.fastq',
+        fastqs2 = 'main_data/fastq/{sample}_2.fastq', 
+    output:
+        paired1 = 'main_data/trimmed_fastq/paired_fastq/{sample}_1.trim.fastq', 
+        paired2 = 'main_data/trimmed_fastq/paired_fastq/{sample}_2.trim.fastq', 
+        unpaired1 = 'main_data/trimmed_fastq/unpaired_fastq/{sample}_1un.trim.fastq',
+        unpaired2 = 'main_data/trimmed_fastq/unpaired_fastq/{sample}_2un.trim.fastq',
+    threads: 1
+    shell:
+        'trimmomatic PE -threads 1 -phred33 {input.fastqs1} {input.fastqs2} {output.paired1} {output.unpaired1} {output.paired2} {output.unpaired2} SLIDINGWINDOW:4:15 MINLEN:36 LEADING:3 TRAILING:3'
+        
+        
+rule second_fastqc:
+    input:
+        paired1 = 'main_data/trimmed_fastq/paired_fastq/{sample}_1.trim.fastq', 
+        paired2 = 'main_data/trimmed_fastq/paired_fastq/{sample}_2.trim.fastq',
+    output:
+        fastqc1 = 'main_data/FastQC2/{sample}_1.trim_fastqc.html',
+        fastqc2 = 'main_data/FastQC2/{sample}_2.trim_fastqc.html',
+    threads: 2
+    shell:
+        'fastqc -t 1 {input.paired1} -o main_data/FastQC2/; fastqc -t 1 {input.paired2} -o main_data/FastQC2'
+        
+        
+        
+        
+
+        

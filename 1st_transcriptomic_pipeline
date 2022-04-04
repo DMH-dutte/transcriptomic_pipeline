@@ -1,0 +1,63 @@
+###################################################################
+## This pipeline is the first step of a transcriptomics pipeline ##
+###################################################################
+#############################################
+## Aim: Persistence of plasmids by RNA-Seq ##
+#############################################
+#############################################
+## Steps in this script:                   ##
+## Before: Download fastq or bam from NCBI ##
+## Input:Accession list;                   ##
+## Output:FastQC/MultiQC                   ##
+#############################################
+'''
+Downloading SRAs can be performed with SRA-toolkit
+An automated python file is available here: download_SRA/
+
+Store your fastqs in following structure: /main_data/fastq/
+
+Afterwards execute multiqc to aggregate results:
+e.g.: multiqc FastQC1/*
+'''
+
+##################################
+## Load Dependencies and config ##
+##################################
+
+'''
+Make sure to create your own config file
+'''
+configfile: 'configs/cyanos.json'
+reference_genome = config["reference_genome"]
+wd_dir = config["working_dir"]
+
+import os
+sample_path = '/home/sunam188/MA_thesis/synechocystis/main_data/fastq'
+samples = [x.split('_')[0] for x in os.listdir(sample_path) if not x.startswith('.')]
+samples = list(set(samples))
+
+#####################################
+## RULE ALL: Definition of the End ##
+#####################################
+
+rule all:
+    input:  
+        expand('main_data/FastQC1/{sample}_1_fastqc.html', sample=samples),
+        expand('main_data/FastQC1/{sample}_2_fastqc.html', sample=samples)
+                      
+      
+rule first_fastqc:
+    input:
+        paired1 = 'main_data/fastq/{sample}_1.fastq', 
+        paired2 = 'main_data/fastq/{sample}_2.fastq',
+    output:
+        fastqc1 = 'main_data/FastQC1/{sample}_1_fastqc.html',
+        fastqc2 = 'main_data/FastQC1/{sample}_2_fastqc.html',
+    threads: 1
+    shell:
+        'fastqc -t 1 {input.paired1} -o main_data/FastQC1/; fastqc -t 1 {input.paired2} -o main_data/FastQC1'
+
+
+ 
+
+    
