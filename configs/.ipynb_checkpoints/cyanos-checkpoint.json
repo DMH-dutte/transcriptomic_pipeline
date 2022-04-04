@@ -1,8 +1,0 @@
-{
-"reference_genome": "/home/sunam188/MA_thesis/synechocystis/reference_genome/GCF_000340785.1_ASM34078v1_genomic.fna",
-"working_dir": "/home/sunam188/MA_thesis/synechocystis/",
-"directory_reference": "/home/sunam188/MA_thesis/reference_genome/",
-"index_name": "synechocystis",
-"annotation": "/home/sunam188/MA_thesis/synechocystis/annotation/GCF_000340785.1_ASM34078v1_genomic.gff",
-"reference_genome_path": "/home/sunam188/MA_thesis/synechocystis/reference_genome/",
-}
